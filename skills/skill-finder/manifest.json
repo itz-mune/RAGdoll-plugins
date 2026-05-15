@@ -1,0 +1,19 @@
+{
+  "id": "skill-finder",
+  "name": "Skill Finder",
+  "category": "skill",
+  "author": "itz-mune",
+  "version": "1.0.0",
+  "description": "Auto-discovers and installs marketplace skills when a task requires capabilities not yet available.",
+  "icon": "🧩",
+  "logo": "logo.png",
+  "entry": "skill.py",
+  "min_ragdoll_version": "0.1.0",
+  "tags": ["meta", "marketplace", "auto-install", "skills", "discover"],
+  "preinstalled": true,
+  "long_description": "A meta-skill that gives the assistant the ability to search the RAGdoll plugin marketplace and auto-install skills on demand.\n\nWhen the assistant encounters a task it cannot handle — for example, an unsupported file type, a missing API integration, or any capability gap — it will automatically search the marketplace for a relevant skill, install it, and instruct the user to retry.\n\n**How it works:**\n1. Assistant detects it lacks a required capability\n2. Calls `search_marketplace` to find relevant skills\n3. Calls `install_skill` to download and install the best match\n4. Asks the user to re-send their message so the new skill can be used\n\nNo configuration required.",
+  "changelog": {
+    "1.0.0": "Initial release."
+  },
+  "config_fields": []
+}

@@ -3,6 +3,23 @@
   "updated_at": "2026-05-15",
   "plugins": [
     {
+      "id": "skill-finder",
+      "name": "Skill Finder",
+      "category": "skill",
+      "author": "itz-mune",
+      "version": "1.0.0",
+      "description": "Auto-discovers and installs marketplace skills when a task requires capabilities not yet available.",
+      "icon": "🧩",
+      "logo": "logo.png",
+      "entry": "skill.py",
+      "path": "skills/skill-finder",
+      "min_ragdoll_version": "0.1.0",
+      "tags": ["meta", "marketplace", "auto-install", "skills", "discover"],
+      "preinstalled": true,
+      "stars": 0,
+      "downloads": 0
+    },
+    {
       "id": "web-search",
       "name": "Web Search",
       "category": "skill",
