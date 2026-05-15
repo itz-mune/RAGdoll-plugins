@@ -213,6 +213,12 @@ def _install_skill(plugin_id: str) -> str:
     """
     Download and install a skill from the RAGdoll marketplace by its plugin ID.
     Only use this for category=skill plugins.
+
+    IMPORTANT: You MUST ask the user for permission before calling this tool.
+    Present the plugin name and description, then wait for the user to explicitly
+    confirm (e.g. "yes", "go ahead", "install it") before proceeding.
+    Never install silently or without the user's explicit approval.
+
     After a successful install, tell the user to re-send their message so the
     new skill becomes active — skills are loaded at request start, not mid-request.
 
@@ -241,6 +247,13 @@ def _install_skill(plugin_id: str) -> str:
 
         api_base = cfg.get("github_api_base", "https://api.github.com/repos/itz-mune/RAGdoll-plugins")
         raw_base = cfg.get("raw_base", "https://raw.githubusercontent.com/itz-mune/RAGdoll-plugins/main")
+
+        # Emit installing indicator to the SSE stream
+        try:
+            from plugins.events import emit
+            emit({"type": "plugin_install", "plugin_name": plugin["name"], "plugin_id": plugin_id})
+        except ImportError:
+            pass
 
         files = _download_plugin_files(plugin, api_base, raw_base)
         if not files:
@@ -272,6 +285,10 @@ def _install_and_activate_style(plugin_id: str) -> str:
     Styles affect how the assistant speaks — e.g. pirate, Shakespearean, formal.
     The new style takes effect starting from the NEXT message (not this one).
 
+    IMPORTANT: You MUST ask the user for permission before calling this tool.
+    Tell the user which style you're about to install/activate and wait for
+    their explicit confirmation before proceeding. Never activate silently.
+
     Args:
         plugin_id: Exact style plugin ID, e.g. "style-pirate" or "style-shakespeare"
     """
@@ -296,6 +313,13 @@ def _install_and_activate_style(plugin_id: str) -> str:
         if plugin_id not in installed_ids:
             api_base = cfg.get("github_api_base", "https://api.github.com/repos/itz-mune/RAGdoll-plugins")
             raw_base = cfg.get("raw_base", "https://raw.githubusercontent.com/itz-mune/RAGdoll-plugins/main")
+
+            # Emit installing indicator to the SSE stream
+            try:
+                from plugins.events import emit
+                emit({"type": "plugin_install", "plugin_name": plugin["name"], "plugin_id": plugin_id})
+            except ImportError:
+                pass
 
             files = _download_plugin_files(plugin, api_base, raw_base)
             if not files:
