@@ -1,0 +1,26 @@
+{
+  "id": "youtube-transcript",
+  "name": "YouTube Transcript",
+  "category": "skill",
+  "author": "RAGdoll",
+  "version": "1.0.0",
+  "description": "Retrieve the auto-generated or manual transcript from any YouTube video.",
+  "icon": "▶️",
+  "entry": "skill.py",
+  "min_ragdoll_version": "0.1.0",
+  "tags": ["youtube", "video", "transcript", "captions", "subtitles"],
+  "preinstalled": true,
+  "long_description": "Adds a `get_youtube_transcript` tool that fetches the transcript (captions) for a YouTube video by URL or video ID. Useful for summarizing or Q&A over video content.",
+  "changelog": {
+    "1.0.0": "Initial release."
+  },
+  "config_fields": [
+    {
+      "key": "language",
+      "label": "Language code",
+      "type": "text",
+      "placeholder": "en",
+      "help": "Preferred transcript language code (e.g. 'en', 'es', 'fr'). Falls back to any available language."
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "id": "image-viewer",
+  "name": "Image Viewer",
+  "category": "skill",
+  "author": "RAGdoll",
+  "version": "1.0.0",
+  "description": "Fetch an image from a URL and describe it using vision capabilities.",
+  "icon": "🖼️",
+  "entry": "skill.py",
+  "min_ragdoll_version": "0.1.0",
+  "tags": ["image", "vision", "url", "describe"],
+  "preinstalled": true,
+  "long_description": "Adds a `view_image` tool that downloads an image from a URL, base64-encodes it, and sends it to the active vision-capable model for description or analysis.",
+  "changelog": {
+    "1.0.0": "Initial release."
+  },
+  "config_fields": []
+}

@@ -1,0 +1,33 @@
+{
+  "id": "image-gen-stability",
+  "name": "Image Gen (Stability AI)",
+  "category": "skill",
+  "author": "RAGdoll",
+  "version": "1.0.0",
+  "description": "Generate images with Stability AI's Stable Diffusion via the REST API.",
+  "icon": "🌊",
+  "entry": "skill.py",
+  "min_ragdoll_version": "0.1.0",
+  "tags": ["image", "generation", "stability", "stable-diffusion", "art"],
+  "preinstalled": false,
+  "long_description": "Adds a `generate_image_stability` tool that calls the Stability AI REST API (stable-image/generate/core) and returns a base64 data URI of the generated image.",
+  "changelog": {
+    "1.0.0": "Initial release."
+  },
+  "config_fields": [
+    {
+      "key": "api_key",
+      "label": "Stability API Key",
+      "type": "password",
+      "placeholder": "sk-…",
+      "help": "Your Stability AI API key from platform.stability.ai."
+    },
+    {
+      "key": "aspect_ratio",
+      "label": "Aspect ratio",
+      "type": "text",
+      "placeholder": "1:1",
+      "help": "Output aspect ratio: 1:1, 16:9, 4:3, 3:2, 21:9, etc."
+    }
+  ]
+}

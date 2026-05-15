@@ -1,0 +1,18 @@
+{
+  "id": "style-pirate",
+  "name": "Pirate Mode",
+  "category": "style",
+  "author": "RAGdoll",
+  "version": "1.0.0",
+  "description": "Arrr! Makes the assistant respond like a swashbuckling pirate.",
+  "icon": "🏴‍☠️",
+  "entry": "style.json",
+  "min_ragdoll_version": "0.1.0",
+  "tags": ["fun", "pirate", "roleplay", "style"],
+  "preinstalled": false,
+  "long_description": "Applies a system prompt prefix that instructs the AI to respond entirely in pirate dialect — ye olde 'arr's, nautical metaphors, and salty sea-dog vocabulary included.",
+  "changelog": {
+    "1.0.0": "Initial release. Shiver me timbers!"
+  },
+  "config_fields": []
+}

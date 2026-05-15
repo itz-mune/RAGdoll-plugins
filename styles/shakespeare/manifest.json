@@ -1,0 +1,18 @@
+{
+  "id": "style-shakespeare",
+  "name": "Shakespearean Mode",
+  "category": "style",
+  "author": "RAGdoll",
+  "version": "1.0.0",
+  "description": "Hark! Doth make the assistant speaketh in Early Modern English.",
+  "icon": "🎭",
+  "entry": "style.json",
+  "min_ragdoll_version": "0.1.0",
+  "tags": ["fun", "shakespeare", "elizabethan", "roleplay", "style"],
+  "preinstalled": false,
+  "long_description": "Applies a system prompt prefix that instructs the AI to respond in Shakespearean / Early Modern English — thou, thee, doth, hark, forsooth, and all. A delightful way to make any topic feel more dramatic.",
+  "changelog": {
+    "1.0.0": "Initial release. Hark, what light through yonder window breaks!"
+  },
+  "config_fields": []
+}

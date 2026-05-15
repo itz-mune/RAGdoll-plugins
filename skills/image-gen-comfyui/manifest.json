@@ -1,0 +1,40 @@
+{
+  "id": "image-gen-comfyui",
+  "name": "Image Gen (ComfyUI)",
+  "category": "skill",
+  "author": "RAGdoll",
+  "version": "1.0.0",
+  "description": "Generate images using a locally running ComfyUI server.",
+  "icon": "⚙️",
+  "entry": "skill.py",
+  "min_ragdoll_version": "0.1.0",
+  "tags": ["image", "generation", "comfyui", "local", "stable-diffusion"],
+  "preinstalled": false,
+  "long_description": "Adds a `generate_image_comfyui` tool that submits a prompt to a local ComfyUI instance via its API and returns the generated image as a base64 data URI. Requires ComfyUI running locally.",
+  "changelog": {
+    "1.0.0": "Initial release."
+  },
+  "config_fields": [
+    {
+      "key": "host",
+      "label": "ComfyUI host",
+      "type": "text",
+      "placeholder": "127.0.0.1:8188",
+      "help": "Host and port of your local ComfyUI server."
+    },
+    {
+      "key": "checkpoint",
+      "label": "Checkpoint model",
+      "type": "text",
+      "placeholder": "v1-5-pruned-emaonly.ckpt",
+      "help": "Model checkpoint filename as it appears in ComfyUI's model list."
+    },
+    {
+      "key": "steps",
+      "label": "Steps",
+      "type": "number",
+      "placeholder": "20",
+      "help": "Number of diffusion steps (higher = slower but better quality)."
+    }
+  ]
+}

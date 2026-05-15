@@ -1,0 +1,40 @@
+{
+  "id": "image-gen-dalle",
+  "name": "Image Gen (DALL-E)",
+  "category": "skill",
+  "author": "RAGdoll",
+  "version": "1.0.0",
+  "description": "Generate images with OpenAI DALL-E 3 from a text prompt.",
+  "icon": "🎨",
+  "entry": "skill.py",
+  "min_ragdoll_version": "0.1.0",
+  "tags": ["image", "generation", "dalle", "openai", "art"],
+  "preinstalled": false,
+  "long_description": "Adds a `generate_image_dalle` tool that calls the OpenAI Images API (DALL-E 3) and returns the image URL. Requires an OpenAI API key.",
+  "changelog": {
+    "1.0.0": "Initial release."
+  },
+  "config_fields": [
+    {
+      "key": "api_key",
+      "label": "OpenAI API Key",
+      "type": "password",
+      "placeholder": "sk-…",
+      "help": "Your OpenAI API key. Overrides the OPENAI_API_KEY environment variable."
+    },
+    {
+      "key": "model",
+      "label": "Model",
+      "type": "text",
+      "placeholder": "dall-e-3",
+      "help": "DALL-E model to use: dall-e-3 or dall-e-2."
+    },
+    {
+      "key": "size",
+      "label": "Image size",
+      "type": "text",
+      "placeholder": "1024x1024",
+      "help": "Image dimensions: 1024x1024, 1792x1024, or 1024x1792 (DALL-E 3 only)."
+    }
+  ]
+}

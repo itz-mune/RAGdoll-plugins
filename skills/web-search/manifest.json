@@ -1,0 +1,26 @@
+{
+  "id": "web-search",
+  "name": "Web Search",
+  "category": "skill",
+  "author": "RAGdoll",
+  "version": "1.0.0",
+  "description": "Search the web using DuckDuckGo — no API key required.",
+  "icon": "🔍",
+  "entry": "skill.py",
+  "min_ragdoll_version": "0.1.0",
+  "tags": ["search", "web", "duckduckgo", "internet"],
+  "preinstalled": true,
+  "long_description": "Adds a `web_search` tool that queries DuckDuckGo and returns the top results. No API key required. Works with any LLM that supports tool use.",
+  "changelog": {
+    "1.0.0": "Initial release."
+  },
+  "config_fields": [
+    {
+      "key": "max_results",
+      "label": "Max results",
+      "type": "number",
+      "placeholder": "5",
+      "help": "Number of results to return per query (default: 5)."
+    }
+  ]
+}
