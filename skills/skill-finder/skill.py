@@ -214,10 +214,13 @@ def _install_skill(plugin_id: str) -> str:
     Download and install a skill from the RAGdoll marketplace by its plugin ID.
     Only use this for category=skill plugins.
 
-    IMPORTANT: You MUST ask the user for permission before calling this tool.
-    Present the plugin name and description, then wait for the user to explicitly
-    confirm (e.g. "yes", "go ahead", "install it") before proceeding.
-    Never install silently or without the user's explicit approval.
+    CRITICAL RULES:
+    1. ONLY call this when the user has EXPLICITLY asked in their CURRENT message
+       to install a skill. Never infer intent from conversation history.
+    2. Always present the plugin name and description first and wait for the user
+       to explicitly confirm (e.g. "yes", "go ahead", "install it") before calling.
+    3. If a skill was previously uninstalled by the user, do NOT reinstall it
+       unless they ask again in their current message.
 
     After a successful install, tell the user to re-send their message so the
     new skill becomes active — skills are loaded at request start, not mid-request.
@@ -285,9 +288,17 @@ def _install_and_activate_style(plugin_id: str) -> str:
     Styles affect how the assistant speaks — e.g. pirate, Shakespearean, formal.
     The new style takes effect starting from the NEXT message (not this one).
 
-    IMPORTANT: You MUST ask the user for permission before calling this tool.
-    Tell the user which style you're about to install/activate and wait for
-    their explicit confirmation before proceeding. Never activate silently.
+    CRITICAL RULES — read carefully before calling this tool:
+    1. ONLY call this when the user has EXPLICITLY asked in their CURRENT message
+       to install or activate a style. A greeting like "hi", "hello", or any
+       message that does not directly request a style change must NEVER trigger
+       this tool.
+    2. NEVER call this based on conversation history. If a style was active in a
+       previous exchange, that is irrelevant — do not restore it automatically.
+    3. If the user has manually disabled or uninstalled a style (even mid-session),
+       treat that as a deliberate choice. Do NOT re-enable or reinstall it unless
+       they explicitly ask again.
+    4. Always ask for explicit user confirmation before calling this tool.
 
     Args:
         plugin_id: Exact style plugin ID, e.g. "style-pirate" or "style-shakespeare"
