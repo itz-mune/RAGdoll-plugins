@@ -18,9 +18,12 @@ def web_search(query: str) -> str:
         query: The search query string.
     """
     try:
-        from duckduckgo_search import DDGS
+        from ddgs import DDGS
     except ImportError:
-        return "Error: duckduckgo-search package is not installed."
+        try:
+            from duckduckgo_search import DDGS  # fallback for older installs
+        except ImportError:
+            return "Error: ddgs package is not installed. Run: uv add ddgs"
 
     try:
         max_r = _MAX_RESULTS
