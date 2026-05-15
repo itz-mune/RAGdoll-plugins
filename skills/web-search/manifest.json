@@ -3,7 +3,7 @@
   "name": "Web Search",
   "category": "skill",
   "author": "RAGdoll",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Search the web using DuckDuckGo — no API key required.",
   "icon": "🔍",
   "entry": "skill.py",
@@ -12,7 +12,8 @@
   "preinstalled": true,
   "long_description": "Adds a `web_search` tool that queries DuckDuckGo and returns the top results. No API key required. Works with any LLM that supports tool use.",
   "changelog": {
-    "1.0.0": "Initial release."
+    "1.0.0": "Initial release.",
+    "1.0.1": "Fix: updated DuckDuckGo import from duckduckgo-search to ddgs (package renamed)."
   },
   "config_fields": [
     {
