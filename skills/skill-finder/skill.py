@@ -127,6 +127,28 @@ def _download_plugin_files(plugin: dict, api_base: str, raw_base: str) -> list[d
     return files
 
 
+def _sidecar_install(plugin_id: str, files: list) -> dict:
+    """Call plugins.loader.install_plugin directly, or fall back to HTTP."""
+    try:
+        from plugins.loader import install_plugin
+        install_plugin(plugin_id, files)
+        return {"success": True}
+    except ImportError:
+        pass
+    return _post(f"{SIDECAR_URL}/plugins/install", {"id": plugin_id, "files": files})
+
+
+def _sidecar_activate_style(plugin_id: str) -> None:
+    """Call plugins.state.set_active_style directly, or fall back to HTTP."""
+    try:
+        from plugins.state import set_active_style
+        set_active_style(plugin_id)
+        return
+    except ImportError:
+        pass
+    _post(f"{SIDECAR_URL}/plugins/style/{plugin_id}/activate", {})
+
+
 def _get_sidecar_state() -> tuple:
     """Return (installed_ids, enabled_ids, active_style).
 
@@ -306,7 +328,7 @@ def _install_skill(plugin_id: str) -> str:
         if not files:
             return f"No downloadable files found for `{plugin_id}`."
 
-        result = _post(f"{SIDECAR_URL}/plugins/install", {"id": plugin_id, "files": files})
+        result = _sidecar_install(plugin_id, files)
 
         needs_key = bool(plugin.get("config_fields"))
         key_warning = (
@@ -380,7 +402,7 @@ def _install_and_activate_style(plugin_id: str) -> str:
             if not files:
                 return f"No downloadable files found for `{plugin_id}`."
 
-            result = _post(f"{SIDECAR_URL}/plugins/install", {"id": plugin_id, "files": files})
+            result = _sidecar_install(plugin_id, files)
             if not result.get("success"):
                 return f"Installation failed: {result.get('error', 'unknown error')}"
 
@@ -391,7 +413,7 @@ def _install_and_activate_style(plugin_id: str) -> str:
                 f"I'm already speaking in that style!"
             )
 
-        _post(f"{SIDECAR_URL}/plugins/style/{plugin_id}/activate", {})
+        _sidecar_activate_style(plugin_id)
 
         return (
             f"✅ **{plugin['name']}** has been installed and activated!\n\n"
