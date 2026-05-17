@@ -1,13 +1,13 @@
 {
   "version": "1",
-  "updated_at": "2026-05-15",
+  "updated_at": "2026-05-17",
   "plugins": [
     {
       "id": "skill-finder",
       "name": "Skill Finder",
       "category": "skill",
       "author": "itz-mune",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "description": "Auto-discovers and installs marketplace skills when a task requires capabilities not yet available.",
       "icon": "🧩",
       "logo": "logo.png",
