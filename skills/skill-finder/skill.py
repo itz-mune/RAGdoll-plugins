@@ -1,14 +1,23 @@
 """
-Skill Finder — meta-skill that searches the RAGdoll marketplace and auto-installs
-skills and styles on demand.
+Skill Finder — gives the agent access to the RAGdoll plugin marketplace.
 
 Tools exposed:
-  search_marketplace(query)          — find skills OR styles matching a description
-  install_skill(plugin_id)           — download and install a skill by registry ID
-  install_and_activate_style(plugin_id) — install a style (if needed) and activate it
+  search_marketplace(query)             — search for any skill, style, or add-on
+  install_skill(plugin_id)              — install a skill plugin by id
+  install_and_activate_style(plugin_id) — install + activate a speaking style plugin
 
-The agent should call search_marketplace first to identify the right plugin ID,
-then call the appropriate install tool.
+MANDATORY WORKFLOW for any out-of-box request:
+  1. Call search_marketplace(query) — ALWAYS do this first
+  2a. If a skill is found   → call install_skill(plugin_id)
+  2b. If a style is found   → call install_and_activate_style(plugin_id)
+  3.  If nothing is found   → inform the user, then fall back to native capability
+
+This applies to: speaking styles (pirate, Shakespearean, formal, any persona),
+image generation, web search, URL fetching, video transcripts, file processing,
+code execution, and any other capability that could be served by a plugin.
+
+NEVER mimic a style or simulate a capability without searching first.
+Mimicking a style natively lasts only one message; the tool persists it permanently.
 
 Skills:  need a re-send to take effect (loaded at request start)
 Styles:  take effect on the very next message after activation
@@ -118,8 +127,43 @@ def _download_plugin_files(plugin: dict, api_base: str, raw_base: str) -> list[d
     return files
 
 
+def _get_sidecar_state() -> tuple:
+    """Return (installed_ids, enabled_ids, active_style).
+
+    Reads directly from sidecar modules when running inside the sidecar process
+    (avoids an HTTP round-trip that can deadlock or timeout). Falls back to HTTP
+    for standalone / test contexts.
+    """
+    try:
+        from plugins.loader import get_all_plugins
+        from plugins.state import get_plugin_state
+        all_installed = get_all_plugins()
+        ps = get_plugin_state()
+        installed_ids = {p.manifest.id for p in all_installed}
+        enabled_ids = {p.manifest.id for p in all_installed if p.is_enabled}
+        return installed_ids, enabled_ids, ps.active_style
+    except ImportError:
+        pass
+
+    # Fallback: HTTP (standalone / external context)
+    import time
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        try:
+            state = _get(f"{SIDECAR_URL}/plugins", timeout=5)
+            installed_ids = {p["id"] for p in state.get("plugins", [])}
+            enabled_ids = {p["id"] for p in state.get("plugins", []) if p.get("is_enabled")}
+            active_style = state.get("active_style")
+            return installed_ids, enabled_ids, active_style
+        except Exception as exc:
+            last_exc = exc
+            if attempt < 2:
+                time.sleep(0.25)
+    raise RuntimeError(f"Cannot reach plugin state after 3 attempts: {last_exc}")
+
+
 def _fetch_registry_and_state():
-    """Return (registry_plugins, installed_ids, active_style_id, cfg)."""
+    """Return (registry_plugins, installed_ids, enabled_ids, active_style, cfg)."""
     cfg = _get_plugins_config()
     registry_url = cfg.get(
         "registry_url",
@@ -128,15 +172,7 @@ def _fetch_registry_and_state():
     registry = _get(registry_url)
     all_plugins = registry.get("plugins", [])
 
-    try:
-        state = _get(f"{SIDECAR_URL}/plugins")
-        installed_ids = {p["id"] for p in state.get("plugins", [])}
-        enabled_ids = {p["id"] for p in state.get("plugins", []) if p.get("is_enabled")}
-        active_style = state.get("active_style")
-    except Exception:
-        installed_ids = set()
-        enabled_ids = set()
-        active_style = None
+    installed_ids, enabled_ids, active_style = _get_sidecar_state()
 
     return all_plugins, installed_ids, enabled_ids, active_style, cfg
 
@@ -145,14 +181,19 @@ def _fetch_registry_and_state():
 
 def _search_marketplace(query: str) -> str:
     """
-    Search the RAGdoll plugin marketplace for skills AND styles matching a query.
-    Use this when the current toolset lacks a required capability, or when the user
-    asks to change the assistant's tone/persona/speaking style.
+    Search the RAGdoll plugin marketplace for skills, styles, and add-ons.
+
+    Call this FIRST whenever the user's request might benefit from a plugin:
+      - Speaking styles: "pirate", "Shakespearean", "formal", "speak like X"
+      - Image generation, web search, URL fetching, YouTube transcripts
+      - File processing, code execution, or any other specialised capability
+      - Anything you cannot fully handle with your built-in knowledge alone
+
+    This is the mandatory first step before install_skill or install_and_activate_style.
 
     Args:
-        query: Natural-language description of what's needed.
-               For skills: "read Excel file", "generate image", "fetch webpage"
-               For styles: "speak like a pirate", "formal tone", "shakespearean"
+        query: Short description of what is needed, e.g. "shakespearean speaking style",
+               "generate image", "search the web", "read YouTube video"
     """
     try:
         all_plugins, installed_ids, enabled_ids, active_style, _ = _fetch_registry_and_state()
@@ -214,20 +255,23 @@ def _install_skill(plugin_id: str) -> str:
     Download and install a skill from the RAGdoll marketplace by its plugin ID.
     Only use this for category=skill plugins.
 
-    CRITICAL RULES:
-    1. ONLY call this when the user has EXPLICITLY asked in their CURRENT message
-       to install a skill. Never infer intent from conversation history.
-    2. Always present the plugin name and description first and wait for the user
-       to explicitly confirm (e.g. "yes", "go ahead", "install it") before calling.
-    3. If a skill was previously uninstalled by the user, do NOT reinstall it
-       unless they ask again in their current message.
+    WHEN TO CALL THIS TOOL:
+    When the user asks you to install a skill, OR when they try to use a capability
+    you don't have and a matching skill exists in the marketplace. Always call
+    search_marketplace first to find the right plugin_id, then call this.
 
-    After a successful install, tell the user to re-send their message so the
-    new skill becomes active — skills are loaded at request start, not mid-request.
+    Tell the user what you're installing before calling this tool.
+    After a successful install, tell the user to re-send their message — skills
+    are loaded at request start so the new skill takes effect from the next request.
+
+    DO NOT call this tool when:
+    - The user hasn't asked to install anything.
+    - The skill was previously uninstalled — don't reinstall without being asked.
 
     Args:
-        plugin_id: Exact plugin ID, e.g. "image-viewer" or "youtube-transcript"
+        plugin_id: Exact plugin ID from the marketplace, e.g. "image-viewer"
     """
+
     try:
         all_plugins, installed_ids, _, _, cfg = _fetch_registry_and_state()
 
@@ -283,26 +327,26 @@ def _install_skill(plugin_id: str) -> str:
 
 def _install_and_activate_style(plugin_id: str) -> str:
     """
-    Install a style plugin (if not already installed) and immediately activate it.
-    Only use this for category=style plugins.
-    Styles affect how the assistant speaks — e.g. pirate, Shakespearean, formal.
-    The new style takes effect starting from the NEXT message (not this one).
+    Activate a speaking style plugin so it persists across ALL future messages.
 
-    CRITICAL RULES — read carefully before calling this tool:
-    1. ONLY call this when the user has EXPLICITLY asked in their CURRENT message
-       to install or activate a style. A greeting like "hi", "hello", or any
-       message that does not directly request a style change must NEVER trigger
-       this tool.
-    2. NEVER call this based on conversation history. If a style was active in a
-       previous exchange, that is irrelevant — do not restore it automatically.
-    3. If the user has manually disabled or uninstalled a style (even mid-session),
-       treat that as a deliberate choice. Do NOT re-enable or reinstall it unless
-       they explicitly ask again.
-    4. Always ask for explicit user confirmation before calling this tool.
+    WHEN TO CALL THIS TOOL:
+    Any time the user asks you to speak in a named style — "speak like a pirate",
+    "answer in Shakespearean style", "be formal", "pirate mode", etc. — you MUST
+    call this tool INSTEAD OF just mimicking the style yourself. Mimicking without
+    calling this tool means the style only lasts one message and is NOT saved.
+
+    Call search_marketplace first if you don't know the exact plugin_id, then call
+    this tool with the id found (e.g. "style-pirate", "style-shakespeare").
+
+    DO NOT call this tool when:
+    - The user's current message has nothing to do with changing speaking style.
+    - The user manually disabled a style — that was deliberate; don't re-enable it.
+    - You're inferring from history with no style request in the current message.
 
     Args:
-        plugin_id: Exact style plugin ID, e.g. "style-pirate" or "style-shakespeare"
+        plugin_id: Exact style plugin ID from the marketplace, e.g. "style-pirate"
     """
+
     try:
         all_plugins, installed_ids, _, active_style, cfg = _fetch_registry_and_state()
 
