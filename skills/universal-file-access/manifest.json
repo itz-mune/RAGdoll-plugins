@@ -5,7 +5,7 @@
   "category": "skill",
   "author": "itz-mune",
   "description": "Lets RAGdoll search for files on your computer using natural language.",
-  "long_description": "Searches your Documents, Desktop, Downloads and other standard directories using an indexed, fuzzy-matched search engine. Builds a local file index on first install (under 30 s for most systems) and keeps it current with a live file-system watcher. Always asks for your permission before accessing any file paths.",
+  "long_description": "Searches your Documents, Desktop, Downloads and other standard directories using an indexed, fuzzy-matched search engine. Builds a local file index on first install (under 30 s for most systems) and keeps it current with a live file-system watcher. Results are shown instantly — enable 'Ask permission' in settings to add a confirmation step (critical system paths always require approval).",
   "icon": "🔍",
   "entry": "skill.py",
   "min_ragdoll_version": "0.1.0",
@@ -47,6 +47,13 @@
       "type": "number",
       "default": 40,
       "help": "Files scoring below this threshold are excluded. Higher = stricter matching."
+    },
+    {
+      "key": "require_permission",
+      "label": "Ask permission before showing results",
+      "type": "toggle",
+      "default": false,
+      "help": "When on, shows a confirmation dialog before listing found files. Critical system-path files always require permission regardless of this setting."
     }
   ],
   "actions": [

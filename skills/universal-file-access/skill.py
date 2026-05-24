@@ -196,20 +196,23 @@ class UniversalFileAccessTool(BaseTool):
                 "it, which folder it might be in, or any keywords from the filename."
             )
 
-        # ── Step 4: Single batched permission request ─────────────────────────
-        # ALL files are bundled into ONE permission request — never request per-file.
+        # ── Step 4: Permission gate (optional, always on for critical paths) ────
+        # `require_permission` defaults False so normal searches return instantly.
+        # Critical system-path files (Windows, macOS system dirs) always block.
         any_critical = any(is_critical_path(f) for f in files_to_access)
-        approved = await request_permission(
-            files=files_to_access,
-            is_critical=any_critical,
-        )
+        need_perm = any_critical or bool(config.get("require_permission", False))
 
-        if not approved:
-            return (
-                "The user denied file access. "
-                "Do not attempt to access files again in this conversation "
-                "without explicitly asking the user first."
+        if need_perm:
+            approved = await request_permission(
+                files=files_to_access,
+                is_critical=any_critical,
             )
+            if not approved:
+                return (
+                    "The user denied file access. "
+                    "Do not attempt to access files again in this conversation "
+                    "without explicitly asking the user first."
+                )
 
         # ── Step 5: Format and return results ─────────────────────────────────
         if good:
