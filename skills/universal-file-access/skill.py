@@ -117,9 +117,14 @@ class UniversalFileAccessTool(BaseTool):
     name: str = "search_files"
     description: str = (
         "Search for files on the user's computer by describing what you're looking for "
-        "in natural language. Use this when the user asks to find, locate, or open a "
-        "file, document, spreadsheet, presentation, image, or anything stored locally. "
-        "ALWAYS call this before asking the user where a file is."
+        "in natural language. "
+        "ALWAYS call this tool when the user asks to find, locate, open, or access any file "
+        "on their machine — documents, PDFs, spreadsheets, images, videos, code, or anything "
+        "else stored locally. "
+        "NEVER tell the user you cannot access their file system. "
+        "NEVER ask them to find the file themselves. "
+        "NEVER describe how to use File Explorer or Finder. "
+        "Call this tool first, every time, without exception."
     )
     args_schema: type[BaseModel] = _Input
     return_direct: bool = False
