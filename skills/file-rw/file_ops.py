@@ -105,12 +105,236 @@ def _decode_bytes(raw: bytes) -> tuple[str, str]:
         pass
     try:
         import chardet
-        detected = chardet.detect(raw)
+        detected = chardet.detect(raw[:32_768])  # sample for speed
         enc = detected.get("encoding") or "latin-1"
         return raw.decode(enc, errors="replace"), enc
     except ImportError:
         pass
     return raw.decode("latin-1", errors="replace"), "latin-1"
+
+
+# ── Format-aware text extraction ───────────────────────────────────────────────
+
+# Extensions handled by binary extractors — raw bytes of these must NOT be
+# passed to _decode_bytes as they are ZIP/binary container formats.
+_BINARY_EXTS = {
+    "docx", "doc", "xlsx", "xls", "xlsm",
+    "pptx", "ppt", "pdf", "odt", "ods", "odp",
+    "epub", "rtf",
+}
+
+# Extensions that are plain text — decoded directly
+_TEXT_EXTS = {
+    "txt", "md", "rst", "csv", "tsv", "json", "jsonl",
+    "xml", "html", "htm", "yaml", "yml", "toml", "ini",
+    "cfg", "conf", "env", "log", "sql",
+    # Code
+    "py", "js", "ts", "jsx", "tsx", "css", "scss", "less",
+    "html", "sh", "bash", "zsh", "fish", "ps1",
+    "c", "cpp", "h", "hpp", "cs", "java", "kt", "swift",
+    "go", "rs", "rb", "php", "lua", "r", "m",
+    "tf", "tfvars", "hcl",
+    "Dockerfile", "makefile", "cmake",
+}
+
+
+def _extract_text(ext: str, raw: bytes, path: str = "") -> tuple[str, str]:
+    """
+    Extract readable text from raw bytes.
+
+    Returns (text, format_label).  Raises on unrecoverable extraction failure.
+    Callers should pass the full raw bytes (not pre-truncated) for binary formats
+    so the container parser has valid data; text truncation happens afterwards.
+    """
+    ext = ext.lower().lstrip(".")
+
+    # ── Plain-text formats ────────────────────────────────────────────────────
+    if ext == "json" or ext == "jsonl":
+        text, enc = _decode_bytes(raw)
+        try:
+            import json as _json
+            parsed = _json.loads(text)
+            return _json.dumps(parsed, indent=2, ensure_ascii=False), "json"
+        except Exception:
+            return text, enc
+
+    if ext in ("csv", "tsv"):
+        text, enc = _decode_bytes(raw)
+        import csv as _csv, io as _io
+        delim = "\t" if ext == "tsv" else ","
+        try:
+            rows = list(_csv.reader(_io.StringIO(text), delimiter=delim))
+            if not rows:
+                return text, enc
+            col_widths = [max(len(str(r[i])) for r in rows if i < len(r)) for i in range(len(rows[0]))]
+            lines = []
+            for ri, row in enumerate(rows):
+                line = " | ".join(str(cell).ljust(col_widths[i]) for i, cell in enumerate(row))
+                lines.append(line)
+                if ri == 0:
+                    lines.append("-+-".join("-" * w for w in col_widths))
+            return "\n".join(lines), enc
+        except Exception:
+            return text, enc
+
+    if ext in ("html", "htm"):
+        text, enc = _decode_bytes(raw)
+        try:
+            from html.parser import HTMLParser
+            class _Strip(HTMLParser):
+                def __init__(self):
+                    super().__init__()
+                    self._parts: list[str] = []
+                    self._skip = False
+                def handle_starttag(self, tag, attrs):
+                    if tag in ("script", "style"):
+                        self._skip = True
+                def handle_endtag(self, tag):
+                    if tag in ("script", "style"):
+                        self._skip = False
+                def handle_data(self, data):
+                    if not self._skip:
+                        stripped = data.strip()
+                        if stripped:
+                            self._parts.append(stripped)
+            p = _Strip()
+            p.feed(text)
+            return "\n".join(p._parts), "html→text"
+        except Exception:
+            return text, enc
+
+    if ext in ("rtf",):
+        text, enc = _decode_bytes(raw)
+        # Strip RTF control words with a simple regex pass
+        import re as _re
+        text = _re.sub(r"\\\w+\s?", "", text)
+        text = _re.sub(r"[{}]", "", text)
+        return text.strip(), "rtf→text"
+
+    # ── PDF ───────────────────────────────────────────────────────────────────
+    if ext == "pdf":
+        try:
+            from pypdf import PdfReader
+            import io as _io
+            reader = PdfReader(_io.BytesIO(raw))
+            pages = []
+            for i, page in enumerate(reader.pages, 1):
+                page_text = (page.extract_text() or "").strip()
+                if page_text:
+                    pages.append(f"--- Page {i} ---\n{page_text}")
+            return "\n\n".join(pages) or "[No extractable text found in PDF]", "pdf→text"
+        except ImportError:
+            raise ImportError("pypdf not installed — run: uv add pypdf")
+
+    # ── Word / DOCX ───────────────────────────────────────────────────────────
+    if ext in ("docx", "doc"):
+        try:
+            from docx import Document
+            import io as _io
+            doc = Document(_io.BytesIO(raw))
+            parts: list[str] = []
+            for para in doc.paragraphs:
+                text = para.text.strip()
+                if text:
+                    # Preserve heading levels
+                    if para.style.name.startswith("Heading"):
+                        level = para.style.name.split()[-1] if para.style.name.split()[-1].isdigit() else "1"
+                        parts.append(f"{'#' * int(level)} {text}")
+                    else:
+                        parts.append(text)
+            # Also extract tables
+            for table in doc.tables:
+                rows = []
+                for row in table.rows:
+                    rows.append(" | ".join(c.text.strip() for c in row.cells))
+                if rows:
+                    parts.append("\n".join(rows))
+            return "\n\n".join(parts) or "[No extractable text found in document]", "docx→text"
+        except ImportError:
+            raise ImportError("python-docx not installed — run: uv add python-docx")
+
+    # ── Excel / XLSX ──────────────────────────────────────────────────────────
+    if ext in ("xlsx", "xls", "xlsm"):
+        try:
+            import openpyxl, io as _io
+            wb = openpyxl.load_workbook(_io.BytesIO(raw), read_only=True, data_only=True)
+            sheets: list[str] = []
+            for sheet_name in wb.sheetnames:
+                ws = wb[sheet_name]
+                rows = []
+                for row in ws.iter_rows(values_only=True):
+                    row_text = " | ".join("" if v is None else str(v) for v in row)
+                    if row_text.strip():
+                        rows.append(row_text)
+                if rows:
+                    sheets.append(f"=== Sheet: {sheet_name} ===\n" + "\n".join(rows))
+            return "\n\n".join(sheets) or "[No extractable data found in workbook]", "xlsx→text"
+        except ImportError:
+            # Fall back to xlrd for .xls
+            try:
+                import xlrd, io as _io
+                wb = xlrd.open_workbook(file_contents=raw)
+                sheets = []
+                for i in range(wb.nsheets):
+                    ws = wb.sheet_by_index(i)
+                    rows = [" | ".join(str(ws.cell_value(r, c)) for c in range(ws.ncols))
+                            for r in range(ws.nrows)]
+                    sheets.append(f"=== Sheet: {ws.name} ===\n" + "\n".join(rows))
+                return "\n\n".join(sheets), "xls→text"
+            except ImportError:
+                raise ImportError("openpyxl not installed — run: uv add openpyxl")
+
+    # ── PowerPoint / PPTX ────────────────────────────────────────────────────
+    if ext in ("pptx", "ppt"):
+        try:
+            from pptx import Presentation
+            import io as _io
+            prs = Presentation(_io.BytesIO(raw))
+            slides: list[str] = []
+            for i, slide in enumerate(prs.slides, 1):
+                texts = []
+                for shape in slide.shapes:
+                    if hasattr(shape, "text") and shape.text.strip():
+                        texts.append(shape.text.strip())
+                if texts:
+                    slides.append(f"--- Slide {i} ---\n" + "\n".join(texts))
+            return "\n\n".join(slides) or "[No extractable text found in presentation]", "pptx→text"
+        except ImportError:
+            raise ImportError("python-pptx not installed — run: uv add python-pptx")
+
+    # ── EPUB ─────────────────────────────────────────────────────────────────
+    if ext == "epub":
+        try:
+            import zipfile, io as _io
+            from html.parser import HTMLParser
+            class _Strip(HTMLParser):
+                def __init__(self):
+                    super().__init__()
+                    self._parts: list[str] = []
+                    self._skip = False
+                def handle_starttag(self, tag, attrs):
+                    if tag in ("script", "style"): self._skip = True
+                def handle_endtag(self, tag):
+                    if tag in ("script", "style"): self._skip = False
+                def handle_data(self, data):
+                    if not self._skip:
+                        s = data.strip()
+                        if s: self._parts.append(s)
+            with zipfile.ZipFile(_io.BytesIO(raw)) as zf:
+                parts: list[str] = []
+                for name in sorted(zf.namelist()):
+                    if name.endswith((".html", ".xhtml", ".htm")):
+                        html_bytes = zf.read(name)
+                        html_text = html_bytes.decode("utf-8", errors="replace")
+                        p = _Strip()
+                        p.feed(html_text)
+                        parts.extend(p._parts)
+            return "\n\n".join(parts) or "[No extractable text found in EPUB]", "epub→text"
+        except Exception as e:
+            raise ValueError(f"Could not read EPUB: {e}")
+
+    # ── Default: treat as plain text ──────────────────────────────────────────
+    return _decode_bytes(raw)
 
 
 # ── Human-readable helpers ──────────────────────────────────────────────────────
@@ -195,18 +419,33 @@ class FileOps:
         raw = p.read_bytes()
         was_truncated = False
         truncated_at = 0
+        ext = p.suffix.lstrip(".").lower()
 
-        if size > self.max_read_bytes:
-            raw = raw[: self.max_read_bytes]
-            was_truncated = True
-            truncated_at = self.max_read_bytes
+        if ext in _BINARY_EXTS:
+            # Binary containers: parse the FULL bytes with format-aware extractor,
+            # then text-truncate the *extracted* result (not the raw bytes).
+            content, encoding = _extract_text(ext, raw, path)
+            if len(content) > self.max_read_bytes:
+                content = content[: self.max_read_bytes]
+                was_truncated = True
+                truncated_at = self.max_read_bytes
+                content += (
+                    f"\n\n[Text truncated at {_human_size(self.max_read_bytes)} — "
+                    f"source file: {_human_size(size)}]"
+                )
+        else:
+            # Plain-text formats: byte-truncate first, then decode / format-extract.
+            if size > self.max_read_bytes:
+                raw = raw[: self.max_read_bytes]
+                was_truncated = True
+                truncated_at = self.max_read_bytes
 
-        content, encoding = _decode_bytes(raw)
-        if was_truncated:
-            content += (
-                f"\n\n[File truncated at {_human_size(self.max_read_bytes)} — "
-                f"total size: {_human_size(size)}]"
-            )
+            content, encoding = _extract_text(ext, raw, path)
+            if was_truncated:
+                content += (
+                    f"\n\n[File truncated at {_human_size(self.max_read_bytes)} — "
+                    f"total size: {_human_size(size)}]"
+                )
 
         return FileReadResult(
             content=content,
