@@ -234,8 +234,10 @@ class UniversalFileAccessTool(BaseTool):
         return f"No files found matching '{query}'."
 
 
-# Pydantic v2 needs an explicit rebuild when `from __future__ import annotations`
-# is in effect — otherwise the validator is left in a mock/incomplete state.
+# Pydantic v2 needs an explicit rebuild for every model defined in a module
+# that uses `from __future__ import annotations` — the deferred annotation
+# evaluation leaves validators in a mock/incomplete state until rebuild() runs.
+_Input.model_rebuild()
 UniversalFileAccessTool.model_rebuild()
 
 
