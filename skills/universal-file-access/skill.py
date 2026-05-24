@@ -234,6 +234,11 @@ class UniversalFileAccessTool(BaseTool):
         return f"No files found matching '{query}'."
 
 
+# Pydantic v2 needs an explicit rebuild when `from __future__ import annotations`
+# is in effect — otherwise the validator is left in a mock/incomplete state.
+UniversalFileAccessTool.model_rebuild()
+
+
 def register() -> list:
     """Called by the RAGdoll plugin loader. Returns list of LangChain tools."""
     return [UniversalFileAccessTool()]
