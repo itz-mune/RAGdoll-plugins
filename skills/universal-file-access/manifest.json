@@ -1,0 +1,76 @@
+{
+  "id": "universal-file-access",
+  "name": "Universal File Access",
+  "version": "1.0.0",
+  "category": "skill",
+  "author": "itz-mune",
+  "description": "Lets RAGdoll search for files on your computer using natural language.",
+  "long_description": "Searches your Documents, Desktop, Downloads and other standard directories using an indexed, fuzzy-matched search engine. Builds a local file index on first install (under 30 s for most systems) and keeps it current with a live file-system watcher. Always asks for your permission before accessing any file paths.",
+  "icon": "🔍",
+  "entry": "skill.py",
+  "min_ragdoll_version": "0.1.0",
+  "preinstalled": true,
+  "tags": ["files", "search", "system", "productivity", "local"],
+  "config_fields": [
+    {
+      "key": "threshold_type",
+      "label": "Search give-up condition",
+      "type": "select",
+      "options": ["files", "seconds", "characters"],
+      "default": "files",
+      "help": "What triggers RAGdoll to stop searching and ask you for more context."
+    },
+    {
+      "key": "threshold_value",
+      "label": "Threshold value",
+      "type": "number",
+      "default": 20,
+      "help": "Stop searching after this many files, seconds, or characters (depending on the condition above)."
+    },
+    {
+      "key": "index_rebuild_hours",
+      "label": "Index rebuild interval (hours)",
+      "type": "number",
+      "default": 24,
+      "help": "How often to fully rebuild the file index. Lower = more current, higher = less CPU on startup."
+    },
+    {
+      "key": "include_hidden_files",
+      "label": "Include hidden files in search",
+      "type": "toggle",
+      "default": false,
+      "help": "Include files beginning with . (Unix) or marked as hidden (Windows)."
+    },
+    {
+      "key": "min_match_score",
+      "label": "Minimum match score (0–100)",
+      "type": "number",
+      "default": 40,
+      "help": "Files scoring below this threshold are excluded. Higher = stricter matching."
+    }
+  ],
+  "actions": [
+    {
+      "id": "rebuild_index",
+      "label": "Rebuild file index",
+      "description": "Force a full rescan of your directories. Takes up to 30 seconds.",
+      "endpoint": "/plugins/universal-file-access/index/rebuild",
+      "method": "POST",
+      "confirm": false,
+      "loading_label": "Rebuilding…"
+    },
+    {
+      "id": "clear_index",
+      "label": "Clear index",
+      "description": "Delete the cached file index from disk.",
+      "endpoint": "/plugins/universal-file-access/index",
+      "method": "DELETE",
+      "confirm": true,
+      "confirm_message": "This deletes the file index cache. RAGdoll will rebuild it automatically on the next search.",
+      "loading_label": "Clearing…"
+    }
+  ],
+  "changelog": {
+    "1.0.0": "Initial release — indexed file search with live watchdog and permission popup."
+  }
+}
