@@ -1,0 +1,68 @@
+{
+  "id": "file-rw",
+  "name": "File Read/Write",
+  "version": "1.0.0",
+  "category": "skill",
+  "author": "itz-mune",
+  "description": "Read, write, create, delete and inspect files and folders with diff previews.",
+  "long_description": "Gives RAGdoll full read/write access to your file system. Reads files into context, writes with atomic operations and automatic backups, patches targeted lines, deletes safely to the recycle bin, and shows a live diff or confirmation before any destructive change. Integrates with Universal File Access — use search_files first, then file_rw to act on the result.",
+  "icon": "📝",
+  "entry": "skill.py",
+  "min_ragdoll_version": "0.1.0",
+  "preinstalled": true,
+  "requires": ["universal-file-access"],
+  "tags": ["files", "read", "write", "edit", "delete", "system", "productivity"],
+  "config_fields": [
+    {
+      "key": "default_delete_mode",
+      "label": "Default delete behavior",
+      "type": "select",
+      "options": ["recycle_bin", "permanent"],
+      "default": "recycle_bin",
+      "help": "Whether deleted files go to Recycle Bin/Trash or are permanently removed. Individual deletes can override this."
+    },
+    {
+      "key": "create_backups",
+      "label": "Create backup before writing",
+      "type": "toggle",
+      "default": true,
+      "help": "Saves a .ragdoll_backup copy before overwriting any file. Required for the undo feature."
+    },
+    {
+      "key": "max_read_size_mb",
+      "label": "Max file read size (MB)",
+      "type": "number",
+      "default": 1,
+      "help": "Files larger than this will be truncated when read into context. Hard limit is 10 MB."
+    },
+    {
+      "key": "diff_context_lines",
+      "label": "Diff context lines",
+      "type": "number",
+      "default": 3,
+      "help": "Number of unchanged lines shown above and below each change in the diff. Same as git -U flag."
+    },
+    {
+      "key": "show_char_level_diff",
+      "label": "Character-level diff highlighting",
+      "type": "toggle",
+      "default": true,
+      "help": "Highlights the exact characters that changed within a line, not just the whole line."
+    }
+  ],
+  "actions": [
+    {
+      "id": "clear_backups",
+      "label": "Clear all backup files",
+      "description": "Removes all .ragdoll_backup files created by this skill.",
+      "endpoint": "/plugins/file-rw/backups/clear",
+      "method": "DELETE",
+      "confirm": true,
+      "confirm_message": "This will delete all .ragdoll_backup files. You will not be able to undo recent file edits.",
+      "loading_label": "Clearing…"
+    }
+  ],
+  "changelog": {
+    "1.0.0": "Initial release — read/write/patch/delete with diff previews, atomic writes, automatic backups, and undo support."
+  }
+}
