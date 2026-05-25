@@ -592,9 +592,16 @@ class FileOps:
             )
         try:
             p.parent.mkdir(parents=True, exist_ok=True)
-            tmp = Path(str(path) + ".tmp")
-            tmp.write_text(content, encoding="utf-8")
-            os.replace(tmp, path)
+            ext = p.suffix.lstrip(".").lower()
+            from doc_formatter import FORMATTED_EXTS, render_document
+            if ext in FORMATTED_EXTS:
+                # Rich format — Markdown content is rendered into the native format
+                render_document(ext, content, path)
+            else:
+                # Plain text — atomic write
+                tmp = Path(str(path) + ".tmp")
+                tmp.write_text(content, encoding="utf-8")
+                os.replace(tmp, path)
             return OperationResult(ok=True, path=path)
         except Exception as exc:
             return OperationResult(ok=False, path=path, error=str(exc))

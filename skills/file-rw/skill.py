@@ -109,7 +109,15 @@ class FileRWInput(BaseModel):
     )
     content: Optional[str] = Field(
         default=None,
-        description="New file content for 'write' and 'create' operations.",
+        description=(
+            "File content for 'write' and 'create' operations. "
+            "For .docx, .pdf, and .html files write content as Markdown — "
+            "headings (# H1 / ## H2 / ### H3), **bold**, *italic*, `code`, "
+            "bullet lists (- item), numbered lists (1. item), tables (| col | col |), "
+            "code blocks (```lang), blockquotes (> text), and horizontal rules (---) "
+            "are all converted into the document's native formatting automatically. "
+            "For all other extensions the string is written verbatim."
+        ),
     )
     patches: Optional[list[dict]] = Field(
         default=None,
@@ -154,7 +162,11 @@ class FileRWTool(BaseTool):
         "before executing — the user must approve before any file is modified. "
         "To read a file's contents after finding it with search_files, use operation='read'. "
         "IMPORTANT: when you receive a file's contents from this tool, always copy the "
-        "COMPLETE content verbatim into your reply — never summarise or paraphrase file contents."
+        "COMPLETE content verbatim into your reply — never summarise or paraphrase file contents. "
+        "For create with .docx, .pdf, or .html extensions: write the content field as Markdown "
+        "(headings, bold, italic, lists, tables, code blocks) — it is automatically rendered "
+        "into a professionally styled document. Always produce rich, well-structured Markdown "
+        "when creating these formats so the output document looks polished."
     )
     args_schema: type[BaseModel] = FileRWInput
     return_direct: bool = False
@@ -313,7 +325,9 @@ class FileRWTool(BaseTool):
                         return _actionable_error("create", path, Exception(result.error or ""))
                     # result.path is the resolved absolute path (may differ from input)
                     actual = result.path
-                    return f"✓ Created file **{Path(actual).name}** at `{actual}`"
+                    ext    = Path(actual).suffix.lstrip(".").lower()
+                    fmt_note = " (formatted from Markdown)" if ext in {"docx", "pdf", "html", "htm"} else ""
+                    return f"✓ Created file **{Path(actual).name}** at `{actual}`{fmt_note}"
                 else:
                     result = await ops.create_directory(path)
                     if not result.ok:
