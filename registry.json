@@ -1,7 +1,24 @@
 {
   "version": "1",
-  "updated_at": "2026-05-17",
+  "updated_at": "2026-05-25",
   "plugins": [
+    {
+      "id": "image-search",
+      "name": "Image Search",
+      "category": "skill",
+      "author": "itz-mune",
+      "version": "1.0.0",
+      "description": "Search for freely-licensed images from DuckDuckGo, Unsplash, Pexels, or Pixabay. Used by File R/W when creating rich documents.",
+      "icon": "🖼️",
+      "logo": "logo.png",
+      "entry": "skill.py",
+      "path": "skills/image-search",
+      "min_ragdoll_version": "0.1.0",
+      "tags": ["search", "images", "media", "photos", "unsplash", "pexels"],
+      "preinstalled": true,
+      "stars": 0,
+      "downloads": 0
+    },
     {
       "id": "skill-finder",
       "name": "Skill Finder",

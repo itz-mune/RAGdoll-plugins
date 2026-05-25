@@ -1,0 +1,63 @@
+{
+  "id": "image-search",
+  "name": "Image Search",
+  "category": "skill",
+  "author": "itz-mune",
+  "version": "1.0.0",
+  "description": "Search for freely-licensed images from DuckDuckGo, Unsplash, Pexels, or Pixabay. Used by File R/W when creating rich documents.",
+  "icon": "🖼️",
+  "logo": "logo.png",
+  "entry": "skill.py",
+  "min_ragdoll_version": "0.1.0",
+  "tags": ["search", "images", "media", "photos", "unsplash", "pexels"],
+  "preinstalled": true,
+  "long_description": "Provides a `search_images` tool that returns direct image URLs from your chosen provider. DuckDuckGo works out of the box with no setup. Switch to Unsplash, Pexels, or Pixabay in settings for higher-quality results (free API key required).\n\nAutomatically integrates with the File R/W skill — when creating .docx, .pdf, or .html documents the agent calls this tool to find and embed relevant images.",
+  "changelog": {
+    "1.0.0": "Initial release. DuckDuckGo (default), Unsplash, Pexels, Pixabay backends."
+  },
+  "config_fields": [
+    {
+      "key": "provider",
+      "label": "Image provider",
+      "type": "select",
+      "default": "duckduckgo",
+      "options": ["duckduckgo", "unsplash", "pexels", "pixabay"],
+      "help": "DuckDuckGo works with no API key. The others need a free account key — set it below."
+    },
+    {
+      "key": "max_results",
+      "label": "Max results per search",
+      "type": "number",
+      "default": 3,
+      "placeholder": "3",
+      "help": "Maximum number of image results returned per query (1–10)."
+    },
+    {
+      "key": "unsplash_access_key",
+      "label": "Unsplash Access Key",
+      "type": "password",
+      "default": "",
+      "placeholder": "Your Unsplash access key",
+      "help": "Get a free key at unsplash.com/developers",
+      "show_if": { "key": "provider", "value": "unsplash" }
+    },
+    {
+      "key": "pexels_api_key",
+      "label": "Pexels API Key",
+      "type": "password",
+      "default": "",
+      "placeholder": "Your Pexels API key",
+      "help": "Get a free key at pexels.com/api",
+      "show_if": { "key": "provider", "value": "pexels" }
+    },
+    {
+      "key": "pixabay_api_key",
+      "label": "Pixabay API Key",
+      "type": "password",
+      "default": "",
+      "placeholder": "Your Pixabay API key",
+      "help": "Get a free key at pixabay.com/api/docs",
+      "show_if": { "key": "provider", "value": "pixabay" }
+    }
+  ]
+}
