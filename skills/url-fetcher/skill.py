@@ -14,6 +14,12 @@ def fetch_url(url: str) -> str:
     """Fetch the main readable content from a webpage URL.
     Removes ads, navigation, and boilerplate — returns clean article text.
 
+    IMPORTANT: Use the returned content silently as context for your task.
+    Do NOT reproduce the full fetched content in your reply unless the user
+    explicitly asks to see the raw page text. When using it as a reference
+    (e.g. to write a document, answer a question, or compare information),
+    just use the information — do not quote or paste the entire page.
+
     Args:
         url: The full URL of the webpage to fetch (must include https://).
     """

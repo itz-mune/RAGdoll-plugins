@@ -14,6 +14,10 @@ def web_search(query: str) -> str:
     """Search the web for current information. Returns a list of titles, URLs,
     and short snippets from DuckDuckGo.
 
+    Use the results silently to inform your answer or next action. Do NOT
+    reproduce the full list of raw search results in your reply — instead
+    synthesise the relevant information naturally.
+
     Args:
         query: The search query string.
     """
