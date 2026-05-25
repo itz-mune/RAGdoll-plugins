@@ -105,7 +105,17 @@ class FileRWInput(BaseModel):
         )
     )
     path: str = Field(
-        description="Absolute path to the target file or directory."
+        description=(
+            "Path to the target file or directory. "
+            "For 'read', 'write', 'patch', 'delete', 'rename', 'copy', 'move', "
+            "'stats', and 'list' operations use the full absolute path returned by "
+            "search_files. "
+            "For 'create': pass just the filename (e.g. 'report.docx') or a "
+            "subfolder/filename (e.g. 'Projects/notes.md') — the skill resolves it "
+            "against the user's configured default folder (Documents by default). "
+            "Only pass an absolute path for 'create' when the user explicitly "
+            "specifies a full destination folder."
+        )
     )
     content: Optional[str] = Field(
         default=None,

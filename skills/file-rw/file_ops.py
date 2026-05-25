@@ -397,6 +397,37 @@ def _get_documents_dir() -> Path:
     return docs
 
 
+# ── Path helpers ───────────────────────────────────────────────────────────────
+
+def _is_root_level(p: Path) -> bool:
+    """
+    Return True when p sits directly under the filesystem root
+    (e.g. C:\\file.docx or /file.docx).
+
+    root.parent == root in Python's pathlib, so a path whose parent's
+    parent equals itself is one level below the root.
+    """
+    parent = p.parent
+    return parent == parent.parent   # True only for C:\ or /
+
+
+def _resolve_create_path(raw: str, default: Path) -> Path:
+    """
+    Return a sensible absolute path for a create operation.
+
+    Rules (in priority order):
+    1. Relative path  → default_create_path / raw
+    2. Root-level     → default_create_path / filename   (e.g. /foo.docx → Documents/foo.docx)
+    3. Normal absolute path → used as-is
+    """
+    p = Path(raw)
+    if not p.is_absolute():
+        return default / p
+    if _is_root_level(p):
+        return default / p.name
+    return p
+
+
 # ── Max sizes ───────────────────────────────────────────────────────────────────
 
 _MAX_READ_DEFAULT_MB = 1
@@ -581,9 +612,7 @@ class FileOps:
     async def create_file(
         self, path: str, content: str = "", overwrite: bool = False
     ) -> OperationResult:
-        p = Path(path)
-        if not p.is_absolute():
-            p = self.default_create_path / p
+        p    = _resolve_create_path(path, self.default_create_path)
         path = str(p)
         if p.exists() and not overwrite:
             return OperationResult(
@@ -607,9 +636,7 @@ class FileOps:
             return OperationResult(ok=False, path=path, error=str(exc))
 
     async def create_directory(self, path: str) -> OperationResult:
-        p = Path(path)
-        if not p.is_absolute():
-            p = self.default_create_path / p
+        p    = _resolve_create_path(path, self.default_create_path)
         path = str(p)
         try:
             p.mkdir(parents=True, exist_ok=True)
