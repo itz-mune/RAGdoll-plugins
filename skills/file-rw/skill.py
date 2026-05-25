@@ -129,6 +129,12 @@ class FileRWInput(BaseModel):
             "To embed an image use: ![caption](url_or_absolute_path) on its own line. "
             "Use URLs returned by the search_images tool for web images. "
             "Use an absolute local path only when the user explicitly names a file. "
+            "To control image placement append a hint to the caption: "
+            "![caption|left](url) floats left with text wrapping right, "
+            "![caption|right](url) floats right with text wrapping left, "
+            "![caption|center](url) is centred at 68% width, "
+            "![caption|full](url) spans the full text width. "
+            "Omitting the hint auto-detects placement from the image's aspect ratio. "
             "For all other extensions the string is written verbatim."
         ),
     )

@@ -124,10 +124,23 @@ def _parse_blocks(content: str) -> list[dict]:
             i += 1
             continue
 
-        # image  ![alt](src)
+        # image  ![alt](src)  or  ![alt|align](src)
+        # align hint: left | right | center | full  (omit for auto-detect)
         m = re.match(r"^!\[([^\]]*)\]\(([^)]+)\)\s*$", raw.strip())
         if m:
-            blocks.append({"type": "image", "alt": m.group(1), "src": m.group(2).strip()})
+            alt_raw = m.group(1)
+            src     = m.group(2).strip()
+            _ALIGNS = {"left", "right", "center", "full"}
+            if "|" in alt_raw:
+                _parts = alt_raw.rsplit("|", 1)
+                _hint  = _parts[1].strip().lower()
+                if _hint in _ALIGNS:
+                    alt, align = _parts[0].strip(), _hint
+                else:
+                    alt, align = alt_raw, "auto"
+            else:
+                alt, align = alt_raw, "auto"
+            blocks.append({"type": "image", "alt": alt, "src": src, "align": align})
             i += 1
             continue
 
@@ -271,15 +284,15 @@ def markdown_to_docx(content: str, path: str) -> None:
         elif t == "image":
             img_bytes = _fetch_image_bytes(blk["src"])
             if img_bytes:
-                from io import BytesIO
                 try:
-                    doc.add_picture(BytesIO(img_bytes), width=Inches(5.5))
+                    align = _resolve_align(blk.get("align", "auto"), img_bytes)
+                    _docx_add_image(doc, img_bytes, align)
                     if blk.get("alt"):
                         cap = doc.add_paragraph(blk["alt"])
-                        cap.paragraph_format.alignment = 1  # WD_ALIGN_PARAGRAPH.CENTER
-                        for run in cap.runs:
-                            run.italic = True
-                            run.font.size = Pt(9)
+                        cap.paragraph_format.alignment = 1
+                        for _run in cap.runs:
+                            _run.italic = True
+                            _run.font.size = Pt(9)
                 except Exception:
                     pass  # skip silently if image can't be embedded
 
@@ -309,6 +322,106 @@ def markdown_to_docx(content: str, path: str) -> None:
                         tcPr.append(shd)
 
     doc.save(path)
+
+
+def _docx_add_image(doc, img_bytes: bytes, align: str, text_w_inches: float = 6.1) -> None:
+    """Add an image to a DOCX document with the given alignment.
+
+    align == 'full'   → full text-area width, inline
+    align == 'center' → 68 % width, centred paragraph
+    align == 'left'   → 42 % width, float-left via wp:anchor (text wraps right)
+    align == 'right'  → 42 % width, float-right via wp:anchor (text wraps left)
+    """
+    from docx.shared import Inches, Pt
+    from io import BytesIO
+
+    width = _smart_width_inches(align, text_w_inches)
+    para  = doc.add_paragraph()
+    para.paragraph_format.space_before = Pt(4)
+    para.paragraph_format.space_after  = Pt(4)
+
+    if align == "center":
+        para.paragraph_format.alignment = 1  # WD_ALIGN_PARAGRAPH.CENTER
+
+    run = para.add_run()
+    run.add_picture(BytesIO(img_bytes), width=Inches(width))
+
+    if align not in ("left", "right"):
+        return  # inline rendering is correct for full/center
+
+    # ── Convert wp:inline → wp:anchor so Word wraps text around the image ──
+    try:
+        import copy
+        import lxml.etree as etree
+        from docx.oxml.ns import qn
+
+        WP = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+        A  = "http://schemas.openxmlformats.org/drawingml/2006/main"
+
+        drawing_el = run._r.find(qn("w:drawing"))
+        if drawing_el is None:
+            return
+        inline = drawing_el.find(f"{{{WP}}}inline")
+        if inline is None:
+            return
+
+        # Harvest key child elements from the inline image
+        extent  = inline.find(f"{{{WP}}}extent")
+        doc_pr  = inline.find(f"{{{WP}}}docPr")
+        cnv_pr  = inline.find(f"{{{WP}}}cNvGraphicFramePr")
+        graphic = inline.find(f"{{{A}}}graphic")
+
+        cx = extent.get("cx") if extent is not None else str(int(width * 914400))
+        cy = extent.get("cy") if extent is not None else str(int(width * 914400 * 0.75))
+        pr_id   = (doc_pr.get("id",   "1")       if doc_pr is not None else "1")
+        pr_name = (doc_pr.get("name", "Image")   if doc_pr is not None else "Image")
+
+        # Build wp:anchor in the correct OOXML child order
+        anc = etree.Element(f"{{{WP}}}anchor")
+        for k, v in [
+            ("distT", "0"), ("distB", "0"),
+            ("distL", "114300"), ("distR", "114300"),
+            ("simplePos", "0"), ("relativeHeight", "251658240"),
+            ("behindDoc", "0"), ("locked", "0"),
+            ("layoutInCell", "1"), ("allowOverlap", "0"),
+        ]:
+            anc.set(k, v)
+
+        sp = etree.SubElement(anc, f"{{{WP}}}simplePos")
+        sp.set("x", "0"); sp.set("y", "0")
+
+        ph = etree.SubElement(anc, f"{{{WP}}}positionH")
+        ph.set("relativeFrom", "column")
+        etree.SubElement(ph, f"{{{WP}}}align").text = align   # "left" or "right"
+
+        pv = etree.SubElement(anc, f"{{{WP}}}positionV")
+        pv.set("relativeFrom", "paragraph")
+        etree.SubElement(pv, f"{{{WP}}}align").text = "top"
+
+        ext = etree.SubElement(anc, f"{{{WP}}}extent")
+        ext.set("cx", cx); ext.set("cy", cy)
+
+        eff = etree.SubElement(anc, f"{{{WP}}}effectExtent")
+        for s in ("l", "t", "r", "b"):
+            eff.set(s, "0")
+
+        wrap = etree.SubElement(anc, f"{{{WP}}}wrapSquare")
+        wrap.set("wrapText", "bothSides")
+
+        dp = etree.SubElement(anc, f"{{{WP}}}docPr")
+        dp.set("id", pr_id); dp.set("name", pr_name)
+
+        if cnv_pr is not None:
+            anc.append(copy.deepcopy(cnv_pr))
+
+        if graphic is not None:
+            anc.append(copy.deepcopy(graphic))
+
+        drawing_el.remove(inline)
+        drawing_el.append(anc)
+
+    except Exception:
+        pass  # inline image already present — safe fallback
 
 
 def _docx_set_style(style, font_name: str, size, bold: bool = False, colour=None) -> None:
@@ -383,6 +496,58 @@ def _fetch_image_bytes(src: str) -> bytes | None:
         return None
 
 
+def _aspect_ratio(img_bytes: bytes) -> float | None:
+    """Return width/height aspect ratio using Pillow, or None if unavailable."""
+    try:
+        from PIL import Image as _PIL
+        from io import BytesIO as _BIO
+        w, h = _PIL.open(_BIO(img_bytes)).size
+        return w / h if h else None
+    except Exception:
+        return None
+
+
+def _resolve_align(align_hint: str, img_bytes: bytes | None) -> str:
+    """Turn an 'auto' hint (or any explicit one) into a concrete alignment word.
+
+    Rules (applied only when hint == 'auto'):
+      ratio >= 2.0   →  full   (panoramic/banner)
+      ratio >= 1.05  →  center (normal landscape)
+      ratio <  1.05  →  right  (portrait/square — floats right, text wraps left)
+    """
+    if align_hint != "auto":
+        return align_hint
+    if img_bytes is None:
+        return "center"
+    ratio = _aspect_ratio(img_bytes)
+    if ratio is None:
+        return "center"
+    if ratio >= 2.0:
+        return "full"
+    if ratio >= 1.05:
+        return "center"
+    return "right"
+
+
+def _smart_width_inches(align: str, text_w: float = 5.5) -> float:
+    """Return display width in inches for the given alignment and text area."""
+    if align == "full":
+        return text_w
+    if align == "center":
+        return round(text_w * 0.68, 2)   # ~68 % — nicely centred
+    # left / right float
+    return round(text_w * 0.42, 2)       # ~42 % — leaves room for text
+
+
+def _html_fig_class(align: str) -> str:
+    return {
+        "full":   "img-full",
+        "center": "img-center",
+        "left":   "img-wrap-left",
+        "right":  "img-wrap-right",
+    }.get(align, "img-center")
+
+
 def _blocks_to_html_str(blocks: list[dict]) -> str:
     """Render a list of parsed blocks to an HTML fragment string."""
     parts: list[str] = []
@@ -418,25 +583,31 @@ def _blocks_to_html_str(blocks: list[dict]) -> str:
         elif btype == "hr":
             parts.append("<hr>")
         elif btype == "image":
-            src      = blk["src"]
-            alt      = blk.get("alt", "")
-            alt_esc  = alt.replace('"', "&quot;")
-            caption  = f"<figcaption>{_inline_html_safe(alt)}</figcaption>" if alt else ""
+            src        = blk["src"]
+            alt        = blk.get("alt", "")
+            align_hint = blk.get("align", "auto")
+            alt_esc    = alt.replace('"', "&quot;")
+            caption    = f"<figcaption>{_inline_html_safe(alt)}</figcaption>" if alt else ""
+
             if src.startswith(("http://", "https://")):
-                # Remote URL — renderers (browser / WeasyPrint) fetch it directly
+                # Fetch to determine aspect ratio for auto-align; use URL directly in HTML
+                img_bytes_hint = _fetch_image_bytes(src) if align_hint == "auto" else None
+                align    = _resolve_align(align_hint, img_bytes_hint)
+                fig_cls  = _html_fig_class(align)
                 parts.append(
-                    f'<figure><img src="{src}" alt="{alt_esc}">'
+                    f'<figure class="{fig_cls}"><img src="{src}" alt="{alt_esc}">'
                     f'{caption}</figure>'
                 )
             else:
-                # Local path — embed as base64 so the file is self-contained
                 img_bytes = _fetch_image_bytes(src)
                 if img_bytes:
                     import base64
-                    mime = "image/png" if img_bytes[:4] == b"\x89PNG" else "image/jpeg"
-                    b64  = base64.b64encode(img_bytes).decode()
+                    align   = _resolve_align(align_hint, img_bytes)
+                    fig_cls = _html_fig_class(align)
+                    mime    = "image/png" if img_bytes[:4] == b"\x89PNG" else "image/jpeg"
+                    b64     = base64.b64encode(img_bytes).decode()
                     parts.append(
-                        f'<figure><img src="data:{mime};base64,{b64}" alt="{alt_esc}">'
+                        f'<figure class="{fig_cls}"><img src="data:{mime};base64,{b64}" alt="{alt_esc}">'
                         f'{caption}</figure>'
                     )
         elif btype == "table":
@@ -671,22 +842,38 @@ th {
 tr:nth-child(even) td { background: #f5f8fd; }
 
 /* ── Images ───────────────────────────────────────────────────────────────── */
-figure {
-  margin: 1.4em 0;
-  text-align: center;
-  page-break-inside: avoid;
+figure { page-break-inside: avoid; margin: 0; }
+figure img { height: auto; border-radius: 4px; display: block; }
+figcaption { font-size: 8pt; color: #777; margin-top: 0.3em; font-style: italic; text-align: center; }
+
+/* Full-width */
+figure.img-full  { width: 100%; margin: 1.4em 0; }
+figure.img-full img { max-width: 100%; margin: 0 auto; }
+
+/* Centred, partial width */
+figure.img-center { width: 68%; margin: 1.4em auto; }
+figure.img-center img { width: 100%; }
+
+/* Float left — text wraps on the right */
+figure.img-wrap-left {
+  float: left;
+  width: 42%;
+  margin: 0.4em 1.5em 1em 0;
+  clear: left;
 }
-figure img {
-  max-width: 100%;
-  height: auto;
-  border-radius: 4px;
+figure.img-wrap-left img { width: 100%; }
+
+/* Float right — text wraps on the left */
+figure.img-wrap-right {
+  float: right;
+  width: 42%;
+  margin: 0.4em 0 1em 1.5em;
+  clear: right;
 }
-figcaption {
-  font-size: 8.5pt;
-  color: #777;
-  margin-top: 0.35em;
-  font-style: italic;
-}
+figure.img-wrap-right img { width: 100%; }
+
+/* Headings and HR clear floats so the next section starts cleanly */
+h1, h2, h3, h4, h5, h6, hr { clear: both; }
 """
 
 
@@ -899,9 +1086,12 @@ def _pdf_reportlab(content: str, path: str) -> None:
                 from io import BytesIO
                 from reportlab.platypus import Image as _RLImage
                 try:
-                    rl_img = _RLImage(BytesIO(img_bytes), width=5*inch, kind="bound")
-                    rl_img.hAlign = "CENTER"
-                    story.append(Spacer(1, 8))
+                    align     = _resolve_align(blk.get("align", "auto"), img_bytes)
+                    w_inches  = _smart_width_inches(align, text_w=W - ML - MR)
+                    w_pts     = w_inches  # already in points-compatible units (inch)
+                    rl_img    = _RLImage(BytesIO(img_bytes), width=w_inches * inch, kind="bound")
+                    rl_img.hAlign = {"left": "LEFT", "right": "RIGHT"}.get(align, "CENTER")
+                    story.append(Spacer(1, 6))
                     story.append(rl_img)
                     if blk.get("alt"):
                         story.append(Paragraph(
@@ -910,7 +1100,7 @@ def _pdf_reportlab(content: str, path: str) -> None:
                                            textColor=colors.HexColor("#777777"),
                                            alignment=TA_CENTER, spaceAfter=4),
                         ))
-                    story.append(Spacer(1, 8))
+                    story.append(Spacer(1, 6))
                 except Exception:
                     pass  # skip silently if image can't be embedded
 
@@ -1088,22 +1278,33 @@ th, td { border: 1px solid var(--border); padding: .6em .9em; text-align: left; 
 th     { background: var(--th-bg); color: var(--th-text); font-weight: 600; }
 tr:nth-child(even) td { background: var(--tr-alt); }
 
-figure {
-  margin: 1.5em 0;
-  text-align: center;
+figure { margin: 0; }
+figure img { height: auto; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.10); display: block; }
+figcaption { font-size: 0.82em; color: var(--muted); margin-top: 0.4em; font-style: italic; text-align: center; }
+
+figure.img-full  { width: 100%; margin: 1.5em 0; }
+figure.img-full img { max-width: 100%; margin: 0 auto; }
+
+figure.img-center { width: 68%; margin: 1.5em auto; }
+figure.img-center img { width: 100%; }
+
+figure.img-wrap-left {
+  float: left;
+  width: 42%;
+  margin: 0.4em 1.6em 1em 0;
+  clear: left;
 }
-figure img {
-  max-width: 100%;
-  height: auto;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+figure.img-wrap-left img { width: 100%; }
+
+figure.img-wrap-right {
+  float: right;
+  width: 42%;
+  margin: 0.4em 0 1em 1.6em;
+  clear: right;
 }
-figcaption {
-  font-size: 0.85em;
-  color: var(--muted);
-  margin-top: 0.4em;
-  font-style: italic;
-}
+figure.img-wrap-right img { width: 100%; }
+
+h1, h2, h3, h4, h5, h6, hr { clear: both; }
 """
 
 
