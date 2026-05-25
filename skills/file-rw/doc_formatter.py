@@ -124,6 +124,13 @@ def _parse_blocks(content: str) -> list[dict]:
             i += 1
             continue
 
+        # image  ![alt](src)
+        m = re.match(r"^!\[([^\]]*)\]\(([^)]+)\)\s*$", raw.strip())
+        if m:
+            blocks.append({"type": "image", "alt": m.group(1), "src": m.group(2).strip()})
+            i += 1
+            continue
+
         # paragraph
         blocks.append({"type": "paragraph", "text": raw.rstrip()})
         i += 1
@@ -261,6 +268,21 @@ def markdown_to_docx(content: str, path: str) -> None:
             pBdr.append(bot)
             pPr.append(pBdr)
 
+        elif t == "image":
+            img_bytes = _fetch_image_bytes(blk["src"])
+            if img_bytes:
+                from io import BytesIO
+                try:
+                    doc.add_picture(BytesIO(img_bytes), width=Inches(5.5))
+                    if blk.get("alt"):
+                        cap = doc.add_paragraph(blk["alt"])
+                        cap.paragraph_format.alignment = 1  # WD_ALIGN_PARAGRAPH.CENTER
+                        for run in cap.runs:
+                            run.italic = True
+                            run.font.size = Pt(9)
+                except Exception:
+                    pass  # skip silently if image can't be embedded
+
         elif t == "table":
             rows = blk["rows"]
             if not rows:
@@ -328,6 +350,39 @@ def _inline_html_safe(text: str) -> str:
     return t
 
 
+def _fetch_image_bytes(src: str) -> bytes | None:
+    """Download an image from a URL or read it from a local path.
+
+    Returns bytes normalised to JPEG or PNG via Pillow (if installed),
+    or the raw bytes as-is if Pillow is unavailable. Returns None on any error.
+    """
+    try:
+        if src.startswith(("http://", "https://")):
+            import urllib.request
+            req = urllib.request.Request(src, headers={"User-Agent": "RAGdoll/1.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                raw = resp.read()
+        else:
+            raw = Path(src).read_bytes()
+
+        # Normalise via Pillow so any source format works everywhere
+        try:
+            from PIL import Image as _PILImage
+            from io import BytesIO as _BytesIO
+            img = _PILImage.open(_BytesIO(raw))
+            out = _BytesIO()
+            if img.mode == "RGBA":
+                img.save(out, format="PNG")
+            else:
+                img = img.convert("RGB")
+                img.save(out, format="JPEG", quality=85)
+            return out.getvalue()
+        except ImportError:
+            return raw  # Pillow not available — pass through as-is
+    except Exception:
+        return None
+
+
 def _blocks_to_html_str(blocks: list[dict]) -> str:
     """Render a list of parsed blocks to an HTML fragment string."""
     parts: list[str] = []
@@ -362,6 +417,28 @@ def _blocks_to_html_str(blocks: list[dict]) -> str:
             parts.append(f"<pre><code{cls}>{body}</code></pre>")
         elif btype == "hr":
             parts.append("<hr>")
+        elif btype == "image":
+            src      = blk["src"]
+            alt      = blk.get("alt", "")
+            alt_esc  = alt.replace('"', "&quot;")
+            caption  = f"<figcaption>{_inline_html_safe(alt)}</figcaption>" if alt else ""
+            if src.startswith(("http://", "https://")):
+                # Remote URL — renderers (browser / WeasyPrint) fetch it directly
+                parts.append(
+                    f'<figure><img src="{src}" alt="{alt_esc}">'
+                    f'{caption}</figure>'
+                )
+            else:
+                # Local path — embed as base64 so the file is self-contained
+                img_bytes = _fetch_image_bytes(src)
+                if img_bytes:
+                    import base64
+                    mime = "image/png" if img_bytes[:4] == b"\x89PNG" else "image/jpeg"
+                    b64  = base64.b64encode(img_bytes).decode()
+                    parts.append(
+                        f'<figure><img src="data:{mime};base64,{b64}" alt="{alt_esc}">'
+                        f'{caption}</figure>'
+                    )
         elif btype == "table":
             rows  = blk["rows"]
             ncols = max(len(r) for r in rows)
@@ -592,6 +669,24 @@ th {
   font-size: 9pt;
 }
 tr:nth-child(even) td { background: #f5f8fd; }
+
+/* ── Images ───────────────────────────────────────────────────────────────── */
+figure {
+  margin: 1.4em 0;
+  text-align: center;
+  page-break-inside: avoid;
+}
+figure img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+figcaption {
+  font-size: 8.5pt;
+  color: #777;
+  margin-top: 0.35em;
+  font-style: italic;
+}
 """
 
 
@@ -798,6 +893,27 @@ def _pdf_reportlab(content: str, path: str) -> None:
             story.append(Spacer(1, 6))
             story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#C8D8EA")))
             story.append(Spacer(1, 6))
+        elif t == "image":
+            img_bytes = _fetch_image_bytes(blk["src"])
+            if img_bytes:
+                from io import BytesIO
+                from reportlab.platypus import Image as _RLImage
+                try:
+                    rl_img = _RLImage(BytesIO(img_bytes), width=5*inch, kind="bound")
+                    rl_img.hAlign = "CENTER"
+                    story.append(Spacer(1, 8))
+                    story.append(rl_img)
+                    if blk.get("alt"):
+                        story.append(Paragraph(
+                            _rl_sanitize(blk["alt"]),
+                            ParagraphStyle("ImgCap", parent=base, fontSize=9,
+                                           textColor=colors.HexColor("#777777"),
+                                           alignment=TA_CENTER, spaceAfter=4),
+                        ))
+                    story.append(Spacer(1, 8))
+                except Exception:
+                    pass  # skip silently if image can't be embedded
+
         elif t == "table":
             rows = blk["rows"]
             if not rows: continue
@@ -971,6 +1087,23 @@ table {
 th, td { border: 1px solid var(--border); padding: .6em .9em; text-align: left; }
 th     { background: var(--th-bg); color: var(--th-text); font-weight: 600; }
 tr:nth-child(even) td { background: var(--tr-alt); }
+
+figure {
+  margin: 1.5em 0;
+  text-align: center;
+}
+figure img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+}
+figcaption {
+  font-size: 0.85em;
+  color: var(--muted);
+  margin-top: 0.4em;
+  font-style: italic;
+}
 """
 
 

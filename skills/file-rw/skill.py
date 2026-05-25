@@ -126,6 +126,9 @@ class FileRWInput(BaseModel):
             "bullet lists (- item), numbered lists (1. item), tables (| col | col |), "
             "code blocks (```lang), blockquotes (> text), and horizontal rules (---) "
             "are all converted into the document's native formatting automatically. "
+            "To embed an image use: ![caption](url_or_absolute_path) on its own line. "
+            "Use a web URL for freely-licensed images found via web_search. "
+            "Use an absolute local path only when the user explicitly names a file. "
             "For all other extensions the string is written verbatim."
         ),
     )
@@ -178,6 +181,12 @@ class FileRWTool(BaseTool):
         "(headings, bold, italic, lists, tables, code blocks) — it is automatically rendered "
         "into a professionally styled document. Always produce rich, well-structured Markdown "
         "when creating these formats so the output document looks polished. "
+        "IMAGES: when creating a rich document, proactively include relevant images using "
+        "Markdown image syntax: ![caption](url). Find suitable freely-licensed images via "
+        "web_search (prefer Wikimedia Commons, Unsplash, or similar open-license sources) and "
+        "embed them at natural points in the document (e.g. after a section heading). "
+        "Only embed a local file image when the user explicitly names a specific file "
+        "(e.g. 'use logo.png') — in that case use the absolute path returned by search_files. "
         "IMPORTANT for document content: never mention internal filenames, source file paths, "
         "or tool names inside the document body. Do not write things like 'based on "
         "AlbertEinstein.docx' or 'sourced from search results' — the document should read as "
