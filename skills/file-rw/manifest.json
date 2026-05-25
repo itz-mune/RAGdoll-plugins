@@ -14,6 +14,14 @@
   "tags": ["files", "read", "write", "edit", "delete", "system", "productivity"],
   "config_fields": [
     {
+      "key": "default_create_path",
+      "label": "Default folder for new files",
+      "type": "text",
+      "default": "",
+      "placeholder": "C:\\Users\\you\\Documents",
+      "help": "Where new files and folders are created when no absolute path is given. Leave blank to use your OS Documents folder automatically."
+    },
+    {
       "key": "default_delete_mode",
       "label": "Default delete behavior",
       "type": "select",

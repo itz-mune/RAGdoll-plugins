@@ -311,12 +311,14 @@ class FileRWTool(BaseTool):
                     result = await ops.create_file(path, content or "")
                     if not result.ok:
                         return _actionable_error("create", path, Exception(result.error or ""))
-                    return f"✓ Created file **{p.name}** at `{path}`"
+                    # result.path is the resolved absolute path (may differ from input)
+                    actual = result.path
+                    return f"✓ Created file **{Path(actual).name}** at `{actual}`"
                 else:
                     result = await ops.create_directory(path)
                     if not result.ok:
                         return _actionable_error("create", path, Exception(result.error or ""))
-                    return f"✓ Created directory `{path}`"
+                    return f"✓ Created directory `{result.path}`"
             except Exception as exc:
                 return _actionable_error("create", path, exc)
 

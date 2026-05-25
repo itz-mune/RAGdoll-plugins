@@ -376,6 +376,27 @@ def _is_hidden(path: Path) -> bool:
     return False
 
 
+# ── OS Documents folder ────────────────────────────────────────────────────────
+
+def _get_documents_dir() -> Path:
+    """Return the user's Documents folder cross-platform."""
+    if os.name == "nt":
+        try:
+            import ctypes, ctypes.wintypes
+            buf = ctypes.create_unicode_buffer(ctypes.wintypes.MAX_PATH)
+            # CSIDL_PERSONAL (0x05) = My Documents
+            ctypes.windll.shell32.SHGetFolderPathW(0, 0x05, 0, 0, buf)  # type: ignore[attr-defined]
+            docs = Path(buf.value)
+            if docs.exists():
+                return docs
+        except Exception:
+            pass
+    # macOS / Linux / fallback
+    docs = Path.home() / "Documents"
+    docs.mkdir(parents=True, exist_ok=True)
+    return docs
+
+
 # ── Max sizes ───────────────────────────────────────────────────────────────────
 
 _MAX_READ_DEFAULT_MB = 1
@@ -389,9 +410,18 @@ class FileOps:
 
     def __init__(self, config: dict | None = None):
         cfg = config or {}
-        self.max_read_bytes   = int(cfg.get("max_read_size_mb", _MAX_READ_DEFAULT_MB)) * 1024 * 1024
-        self.create_backups   = bool(cfg.get("create_backups", True))
+        self.max_read_bytes    = int(cfg.get("max_read_size_mb", _MAX_READ_DEFAULT_MB)) * 1024 * 1024
+        self.create_backups    = bool(cfg.get("create_backups", True))
         self.default_permanent = cfg.get("default_delete_mode", "recycle_bin") == "permanent"
+
+        # ── Default create path ────────────────────────────────────────────────
+        configured = cfg.get("default_create_path", "").strip()
+        if configured:
+            self.default_create_path = Path(configured)
+        else:
+            self.default_create_path = _get_documents_dir()
+
+    # ── End __init__ ────────────────────────────────────────────────────────────
 
     # ── READ ────────────────────────────────────────────────────────────────────
 
@@ -552,6 +582,9 @@ class FileOps:
         self, path: str, content: str = "", overwrite: bool = False
     ) -> OperationResult:
         p = Path(path)
+        if not p.is_absolute():
+            p = self.default_create_path / p
+        path = str(p)
         if p.exists() and not overwrite:
             return OperationResult(
                 ok=False, path=path,
@@ -567,8 +600,12 @@ class FileOps:
             return OperationResult(ok=False, path=path, error=str(exc))
 
     async def create_directory(self, path: str) -> OperationResult:
+        p = Path(path)
+        if not p.is_absolute():
+            p = self.default_create_path / p
+        path = str(p)
         try:
-            Path(path).mkdir(parents=True, exist_ok=True)
+            p.mkdir(parents=True, exist_ok=True)
             return OperationResult(ok=True, path=path)
         except Exception as exc:
             return OperationResult(ok=False, path=path, error=str(exc))
