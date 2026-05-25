@@ -171,8 +171,9 @@ class FileRWTool(BaseTool):
         "For write and delete operations, always shows the user a diff or preview "
         "before executing — the user must approve before any file is modified. "
         "To read a file's contents after finding it with search_files, use operation='read'. "
-        "IMPORTANT: when you receive a file's contents from this tool, always copy the "
-        "COMPLETE content verbatim into your reply — never summarise or paraphrase file contents. "
+        "When reading a file as context for another task (e.g. to reference, summarise, or build "
+        "on its content) do NOT reproduce the file in your reply — just use it silently. "
+        "Only show the file contents to the user when they explicitly ask to see them. "
         "For create with .docx, .pdf, or .html extensions: write the content field as Markdown "
         "(headings, bold, italic, lists, tables, code blocks) — it is automatically rendered "
         "into a professionally styled document. Always produce rich, well-structured Markdown "
@@ -211,21 +212,15 @@ class FileRWTool(BaseTool):
                 result = await ops.read_file(path)
                 name = Path(path).name
                 truncation_note = (
-                    f"\n\n[Note: file is {_fmt_size(result.size_bytes)} — "
-                    f"showing first {result.line_count} lines of truncated content]"
+                    f"\n\n[Truncated at {_fmt_size(result.size_bytes)} — "
+                    f"total size: {_fmt_size(result.size_bytes)}]"
                     if result.was_truncated else ""
                 )
-                # Embed a firm instruction so the LLM reproduces the content verbatim
-                # rather than summarising it.
                 return (
-                    f"===FILE_CONTENT_START: {name} "
-                    f"({_fmt_size(result.size_bytes)}, {result.line_count} lines, "
-                    f"{result.encoding}){truncation_note}===\n"
-                    f"{result.content}\n"
-                    f"===FILE_CONTENT_END===\n\n"
-                    f"CRITICAL INSTRUCTION: Reproduce EVERY line of the content between "
-                    f"FILE_CONTENT_START and FILE_CONTENT_END verbatim in your reply. "
-                    f"Do NOT paraphrase, summarise, or omit any part of it."
+                    f"[file: {name} | {_fmt_size(result.size_bytes)} | "
+                    f"{result.line_count} lines | {result.encoding}]\n\n"
+                    f"{result.content}"
+                    f"{truncation_note}"
                 )
             except Exception as exc:
                 return _actionable_error("read", path, exc)
