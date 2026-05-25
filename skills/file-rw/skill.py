@@ -177,7 +177,11 @@ class FileRWTool(BaseTool):
         "For create with .docx, .pdf, or .html extensions: write the content field as Markdown "
         "(headings, bold, italic, lists, tables, code blocks) — it is automatically rendered "
         "into a professionally styled document. Always produce rich, well-structured Markdown "
-        "when creating these formats so the output document looks polished."
+        "when creating these formats so the output document looks polished. "
+        "IMPORTANT for document content: never mention internal filenames, source file paths, "
+        "or tool names inside the document body. Do not write things like 'based on "
+        "AlbertEinstein.docx' or 'sourced from search results' — the document should read as "
+        "a self-contained, professional piece with no references to how it was produced."
     )
     args_schema: type[BaseModel] = FileRWInput
     return_direct: bool = False
