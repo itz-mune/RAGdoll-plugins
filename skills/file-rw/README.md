@@ -56,6 +56,16 @@ After any write or patch, the result card shows an **Undo** button. Clicking it 
 
 You can also clear all backups from the plugin settings drawer (Actions → Clear backups).
 
+## Document creation (DOCX / PDF / HTML)
+
+When creating `.docx`, `.pdf`, or `.html` files, write the `content` as **Markdown** — headings, bold, italic, tables, code blocks, lists, and blockquotes are all converted into native document formatting automatically.
+
+PDF output uses **WeasyPrint** as the primary renderer (full CSS, A4 page layout, styled title block, page numbers). **reportlab** is used as a pure-Python fallback if WeasyPrint is unavailable.
+
+> **Windows note:** WeasyPrint requires the **GTK3 runtime** to render fonts and graphics.
+> Without it WeasyPrint will silently fall back to the reportlab renderer at runtime — nothing breaks, but the output will be less polished.
+> Install from: https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer
+
 ## Diff view
 
 The inline diff viewer supports:
